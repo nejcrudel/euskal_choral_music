@@ -1,0 +1,234 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  passwordHash    String    @map("password_hash")
+  firstName       String    @map("first_name")
+  lastName        String    @map("last_name")
+  phone           String?
+  avatarUrl       String?   @map("avatar_url")
+  isEmailVerified Boolean   @default(false) @map("is_email_verified")
+  isActive        Boolean   @default(true) @map("is_active")
+  role            UserRole  @default(user)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  lastLogin       DateTime? @map("last_login")
+  preferences     Json?
+
+  purchases    Purchase[]
+  favorites    Favorite[]
+  downloadLogs DownloadLog[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model Composer {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  biography   String?  @db.Text
+  birthYear   Int?     @map("birth_year")
+  deathYear   Int?     @map("death_year")
+  birthplace  String?
+  photoUrl    String?  @map("photo_url")
+  websiteUrl  String?  @map("website_url")
+  isFeatured  Boolean  @default(false) @map("is_featured")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  scores Score[]
+
+  @@index([slug])
+  @@index([isFeatured])
+  @@map("composers")
+}
+
+model Category {
+  id           String  @id @default(uuid())
+  name         String
+  slug         String  @unique
+  description  String? @db.Text
+  icon         String?
+  displayOrder Int     @default(0) @map("display_order")
+
+  scores Score[]
+
+  @@index([slug])
+  @@index([displayOrder])
+  @@map("categories")
+}
+
+model Tag {
+  id   String @id @default(uuid())
+  name String @unique
+  slug String @unique
+
+  scores ScoreTag[]
+
+  @@index([slug])
+  @@map("tags")
+}
+
+model Score {
+  id              String    @id @default(uuid())
+  title           String
+  slug            String    @unique
+  composerId      String?   @map("composer_id")
+  categoryId      String?   @map("category_id")
+  year            Int?
+  choirType       ChoirType @map("choir_type")
+  language        String?
+  difficulty      Int
+  durationMinutes Int?      @map("duration_minutes")
+  durationSeconds Int?      @map("duration_seconds")
+  price           Decimal   @db.Decimal(10, 2)
+  isFree          Boolean   @default(false) @map("is_free")
+  description     String?   @db.Text
+  coverImageUrl   String?   @map("cover_image_url")
+  previewPages    Int       @default(3) @map("preview_pages")
+  pdfUrl          String?   @map("pdf_url")
+  audioSampleUrl  String?   @map("audio_sample_url")
+  isActive        Boolean   @default(true) @map("is_active")
+  isFeatured      Boolean   @default(false) @map("is_featured")
+  downloadCount   Int       @default(0) @map("download_count")
+  viewCount       Int       @default(0) @map("view_count")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  seoTitle        String?   @map("seo_title") @db.VarChar(70)
+  seoDescription  String?   @map("seo_description") @db.VarChar(160)
+  metaKeywords    String?   @db.Text
+
+  composer     Composer?      @relation(fields: [composerId], references: [id])
+  category     Category?      @relation(fields: [categoryId], references: [id])
+  tags         ScoreTag[]
+  purchaseItems PurchaseItem[]
+  favorites    Favorite[]
+  downloadLogs DownloadLog[]
+
+  @@index([slug])
+  @@index([composerId])
+  @@index([categoryId])
+  @@index([choirType])
+  @@index([difficulty])
+  @@index([isFeatured])
+  @@index([isActive])
+  @@fulltext([title, description, metaKeywords])
+  @@map("scores")
+}
+
+model ScoreTag {
+  scoreId String @map("score_id")
+  tagId   String @map("tag_id")
+
+  score Score @relation(fields: [scoreId], references: [id], onDelete: Cascade)
+  tag   Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([scoreId, tagId])
+  @@map("score_tags")
+}
+
+model Purchase {
+  id            String         @id @default(uuid())
+  userId        String         @map("user_id")
+  orderNumber   String         @unique @map("order_number")
+  totalAmount   Decimal        @map("total_amount") @db.Decimal(10, 2)
+  currency      String         @default("EUR")
+  status        PurchaseStatus @default(pending)
+  paymentMethod String?        @map("payment_method")
+  paymentId     String?        @map("payment_id")
+  invoiceNumber String?        @map("invoice_number")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  completedAt   DateTime?      @map("completed_at")
+
+  user         User           @relation(fields: [userId], references: [id])
+  items        PurchaseItem[]
+  downloadLogs DownloadLog[]
+
+  @@index([userId])
+  @@index([orderNumber])
+  @@index([status])
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id         String  @id @default(uuid())
+  purchaseId String  @map("purchase_id")
+  scoreId    String  @map("score_id")
+  quantity   Int     @default(1)
+  unitPrice  Decimal @map("unit_price") @db.Decimal(10, 2)
+  totalPrice Decimal @map("total_price") @db.Decimal(10, 2)
+
+  purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  score    Score    @relation(fields: [scoreId], references: [id])
+
+  @@index([purchaseId])
+  @@index([scoreId])
+  @@map("purchase_items")
+}
+
+model DownloadLog {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  scoreId       String   @map("score_id")
+  purchaseId    String   @map("purchase_id")
+  downloadToken String   @unique @map("download_token")
+  ipAddress     String?  @map("ip_address") @db.VarChar(45)
+  userAgent     String?  @db.Text
+  downloadedAt  DateTime @default(now()) @map("downloaded_at")
+  expiresAt     DateTime @map("expires_at")
+
+  user     User     @relation(fields: [userId], references: [id])
+  score    Score    @relation(fields: [scoreId], references: [id])
+  purchase Purchase @relation(fields: [purchaseId], references: [id])
+
+  @@index([downloadToken])
+  @@index([expiresAt])
+  @@index([userId, scoreId])
+  @@map("download_logs")
+}
+
+model Favorite {
+  userId    String   @map("user_id")
+  scoreId   String   @map("score_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score Score @relation(fields: [scoreId], references: [id], onDelete: Cascade)
+
+  @@id([userId, scoreId])
+  @@map("favorites")
+}
+
+enum UserRole {
+  user
+  admin
+  composer
+}
+
+enum ChoirType {
+  SATB
+  SSA
+  TTBB
+  SSAA
+  SAB
+  SA
+  TB
+  Unison
+  Other
+}
+
+enum PurchaseStatus {
+  pending
+  completed
+  failed
+  refunded
+}
